@@ -1,6 +1,7 @@
 package data;
 
 import model.MenuItem;
+import model.User;
 
 import java.io.*;
 import java.util.*;
@@ -10,7 +11,7 @@ public class CsvFileHandler {
 
     private CsvFileHandler() {}
 
-    public static CsvFileHandler getInstance() {
+    public static synchronized CsvFileHandler getInstance() {
         if (instance == null) {
             instance = new CsvFileHandler();
         }
@@ -22,7 +23,7 @@ public class CsvFileHandler {
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String line;
             while ((line = br.readLine()) != null) {
-                String[] values = line.split(","); // Assuming CSV values are comma-separated
+                String[] values = line.split(",");
                 if (values.length >= 3) {
                     String name = values[0];
                     double price = Double.parseDouble(values[1]);
@@ -48,6 +49,41 @@ public class CsvFileHandler {
         } catch (IOException e) {
             System.err.println("Error writing file: " + e.getMessage());
         }
+    }
+
+    // Method to read user details from a CSV file
+    public List<User> readUserDetails(String filePath) {
+        List<User> users = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+                if (values.length >= 3) {
+                    String username = values[0];
+                    String encryptedPassword = values[1];
+                    String userType = values[2];
+                    users.add(new User(username, encryptedPassword, userType));
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return users;
+    }
+
+    // Method to write user details to a CSV file
+    public void writeUserDetails(String filePath, List<User> users) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter(filePath))) {
+            for (User user : users) {
+                pw.println(user.getUsername() + "," + user.getEncryptedPassword() + "," + user.getUserType());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public String encryptPassword(String password) {
+        return Base64.getEncoder().encodeToString(password.getBytes());
     }
 
 }
