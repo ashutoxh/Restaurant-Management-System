@@ -52,8 +52,6 @@ public class LoginDialog extends JDialog {
         for (User user : users) {
             if (user.getUsername().equals(username) && user.getEncryptedPassword().equals(csvFileHandler.encryptPassword(password))) {
                 userType = user.getUserType();
-                System.out.println("User name in attemptLogin: " + user.getUsername());
-                System.out.println("User type in attemptLogin: " + userType);
                 isAuthenticated = true;
                 break;
             }
