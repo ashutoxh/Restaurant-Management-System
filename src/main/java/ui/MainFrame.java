@@ -2,6 +2,7 @@ package ui;
 
 import data.CsvFileHandler;
 import model.MenuItem;
+import utils.Constants;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -20,17 +21,46 @@ public class MainFrame extends JFrame {
     private DefaultTableModel tableModel;
     private CsvFileHandler csvFileHandler;
     private JLabel itemCountLabel;
-    private String filePath = "src/main/resources/menu.csv";
+    private String userRole; // "Staff" or "Customer"
 
     public MainFrame() {
+        initializeUI();
+    }
+
+    private void initializeUI() {
         csvFileHandler = CsvFileHandler.getInstance();
 
         setTitle("Restaurant Management System");
         setSize(800, 600);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         getContentPane().setBackground(new Color(255, 255, 255)); // Set background color
 
-        // Table setup with an additional column for type
+        // Setup common UI components like the table
+        setupTable();
+        setupSortAndItemCountPanel();
+        performLogin();
+    }
+
+    private void performLogin() {
+        // Show the login dialog
+        LoginDialog loginDialog = new LoginDialog(this);
+        loginDialog.setVisible(true);
+
+        if (loginDialog.isAuthenticated()) {
+            userRole = loginDialog.getUserType();
+            readOperation();
+            if ("Staff".equals(userRole)) {
+                setupStaffUI();
+            } else {
+                setupCustomerUI();
+            }
+        } else {
+            // User failed to authenticate or closed the login dialog
+            dispose(); // Close the MainFrame
+        }
+    }
+
+    private void setupTable() {
         tableModel = new DefaultTableModel(new String[]{"Name", "Price", "Type"}, 0) {
             @Override
             public Class<?> getColumnClass(int column) {
@@ -49,8 +79,15 @@ public class MainFrame extends JFrame {
         DefaultTableCellRenderer renderer = new DefaultTableCellRenderer();
         renderer.setHorizontalAlignment(JLabel.LEFT);
         table.getColumnModel().getColumn(1).setCellRenderer(renderer);
+    }
 
-        // Sorting feature setup
+    private void setupSortAndItemCountPanel() {
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(setupSortPanel(), BorderLayout.CENTER);
+        topPanel.add(setupItemCountPanel(), BorderLayout.SOUTH);
+        add(topPanel, BorderLayout.NORTH);
+    }
+    private JPanel setupSortPanel() {
         JPanel sortPanel = new JPanel();
         JComboBox<String> sortOptions = new JComboBox<>(new String[]{"Sort by Name", "Sort by Price", "Sort by Type"});
         JComboBox<String> sortOrderOptions = new JComboBox<>(new String[]{"Ascending", "Descending"});
@@ -66,28 +103,16 @@ public class MainFrame extends JFrame {
                 sortOptions.getSelectedIndex(),
                 sortOrderOptions.getSelectedIndex() == 0 ? SortOrder.ASCENDING : SortOrder.DESCENDING
         ));
-        add(sortPanel, BorderLayout.NORTH);
 
-        JPanel itemCountPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        return sortPanel;
+    }
+
+    private JPanel setupItemCountPanel() {
+        JPanel itemCountPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         itemCountLabel = new JLabel();
         itemCountPanel.add(itemCountLabel);
         updateItemCount();
-
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(sortPanel, BorderLayout.CENTER);
-        topPanel.add(itemCountPanel, BorderLayout.SOUTH);
-
-        add(topPanel, BorderLayout.NORTH);
-
-        // CRUD operation buttons
-        JPanel buttonPanel = new JPanel();
-        addButton("Create", buttonPanel, e -> createOperation());
-        addButton("Update", buttonPanel, e -> updateOperation());
-        addButton("Delete", buttonPanel, e -> deleteOperation());
-        add(buttonPanel, BorderLayout.SOUTH);
-
-        // Read and display CSV data
-        readOperation();
+        return itemCountPanel;
     }
 
     private void styleTable() {
@@ -101,6 +126,36 @@ public class MainFrame extends JFrame {
         JButton button = new JButton(text);
         button.addActionListener(actionListener);
         panel.add(button);
+    }
+
+    private void setupStaffUI() {
+        JPanel buttonPanel = new JPanel();
+        addButton("Create", buttonPanel, e -> createOperation());
+        addButton("Update", buttonPanel, e -> updateOperation());
+        addButton("Delete", buttonPanel, e -> deleteOperation());
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        logoutButton(buttonPanel);
+    }
+
+    private void setupCustomerUI() {
+        // Customer-specific UI components
+        JLabel welcomeLabel = new JLabel("Welcome, browse our menu!");
+        add(welcomeLabel, BorderLayout.SOUTH);
+        logoutButton(new JPanel());
+    }
+
+    private void logoutButton(JPanel buttonPanel){
+        JButton logoutButton = new JButton("Logout");
+        logoutButton.addActionListener(e -> logout());
+        buttonPanel.add(logoutButton);
+        add(buttonPanel, BorderLayout.SOUTH);
+    }
+
+    private void logout() {
+        dispose(); // Dispose the current MainFrame
+        // Clear any sensitive data or reset variables if necessary
+        new MainFrame().setVisible(true); // Create a new instance of MainFrame
     }
 
     // CRUD Operations
@@ -126,9 +181,9 @@ public class MainFrame extends JFrame {
                 String type = (String) typeField.getSelectedItem();
 
                 MenuItem menuItem = new MenuItem(name, price, type);
-                List<MenuItem> menuItems = csvFileHandler.readMenuItems(filePath);
+                List<MenuItem> menuItems = csvFileHandler.readMenuItems(Constants.MENU_FILE_PATH);
                 menuItems.add(menuItem);
-                csvFileHandler.writeMenuItems(filePath, menuItems);
+                csvFileHandler.writeMenuItems(Constants.MENU_FILE_PATH, menuItems);
                 updateItemCount();
                 readOperation(); // Refresh data display
             } catch (NumberFormatException ex) {
@@ -138,7 +193,7 @@ public class MainFrame extends JFrame {
     }
 
     private void readOperation() {
-        List<MenuItem> menuItems = csvFileHandler.readMenuItems(filePath);
+        List<MenuItem> menuItems = csvFileHandler.readMenuItems(Constants.MENU_FILE_PATH);
         tableModel.setRowCount(0); // Clear existing data
         for (MenuItem item : menuItems) {
             tableModel.addRow(new Object[]{item.getName(), item.getPrice(), item.getType()});
@@ -173,12 +228,12 @@ public class MainFrame extends JFrame {
                     "Edit Menu Item", JOptionPane.OK_CANCEL_OPTION);
             if (result == JOptionPane.OK_OPTION) {
                 try {
-                    List<MenuItem> menuItems = csvFileHandler.readMenuItems(filePath);
+                    List<MenuItem> menuItems = csvFileHandler.readMenuItems(Constants.MENU_FILE_PATH);
                     MenuItem itemToUpdate = menuItems.get(modelIndex);
                     itemToUpdate.setName(nameField.getText());
                     itemToUpdate.setPrice(Double.parseDouble(priceField.getText()));
                     itemToUpdate.setType((String) typeField.getSelectedItem());
-                    csvFileHandler.writeMenuItems(filePath, menuItems);
+                    csvFileHandler.writeMenuItems(Constants.MENU_FILE_PATH, menuItems);
                     updateItemCount();
                     readOperation(); // Refresh data display
                 } catch (NumberFormatException ex) {
@@ -197,13 +252,13 @@ public class MainFrame extends JFrame {
                     "Are you sure you want to delete this item?", "Delete Item", JOptionPane.YES_NO_OPTION);
             if (confirmation == JOptionPane.YES_OPTION) {
                 try {
-                    List<MenuItem> menuItems = csvFileHandler.readMenuItems(filePath);
+                    List<MenuItem> menuItems = csvFileHandler.readMenuItems(Constants.MENU_FILE_PATH);
                     // Convert the view index to the model index
                     int modelIndex = table.convertRowIndexToModel(selectedRow);
                     // Remove the item from the list
                     menuItems.remove(modelIndex);
                     // Write the updated list back to the CSV
-                    csvFileHandler.writeMenuItems(filePath, menuItems);
+                    csvFileHandler.writeMenuItems(Constants.MENU_FILE_PATH, menuItems);
                     // Refresh the table display
                     updateItemCount();
                     readOperation();
@@ -243,7 +298,7 @@ public class MainFrame extends JFrame {
     }
 
     private void updateItemCount() {
-        List<MenuItem> menuItems = csvFileHandler.readMenuItems(filePath);
+        List<MenuItem> menuItems = csvFileHandler.readMenuItems(Constants.MENU_FILE_PATH);
         Map<String, Long> countByType = menuItems.stream()
                 .collect(Collectors.groupingBy(MenuItem::getType, Collectors.counting()));
 
